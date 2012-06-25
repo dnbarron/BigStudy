@@ -118,3 +118,16 @@ dens <- function(g){
 }
 
 dens(net.interview)
+
+
+know.dy <- dyad.census(knows.int)
+adv.dy <- dyad.census(advice.int)
+lead.dy <- dyad.census(leader.int)
+inf.dy <- dyad.census(infl.int)
+dy.op <- matrix(cbind(know.dy$mut,know.dy$asym,know.dy$null,ecount(knows.int),
+                      adv.dy$mut,adv.dy$asym,adv.dy$null,ecount(advice.int),
+                      lead.dy$mut,lead.dy$asym,lead.dy$null,ecount(leader.int),
+                      inf.dy$mut,inf.dy$asym,inf.dy$null,ecount(infl.int)),ncol=4,byrow=TRUE)
+row.names(dy.op) <- c('Knows','Advice','Leader','Influence')
+colnames(dy.op) <- c('Mutual','Asymmetric','Null','Total')
+dy.op

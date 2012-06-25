@@ -21,12 +21,14 @@ for (i in 1:n){
 #  ix <- tmp[,2] > 0
 #  tmp <- tmp[ix,]
 
-# Get rid of -1 s in advice variable
+alter <- ifelse(alter=='RachaelWiliams','RachaelWilliams',alter)  
+alter <- ifelse(alter=='SuEdwards','SueEdwards',alter)
+
+  # Get rid of -1 s in advice variable
   tmp[,4] <- ifelse(tmp[,4]<=0, 0, 1)
   el <- rbind(el,data.frame(ego,alter,Knows=tmp[,2],Strength=tmp[,3],
                 advice=tmp[,4],leadership=tmp[,5],influence=tmp[,6]))
 }
-
 
 # Reduce to non-zero edges and build a graph object
 el.nonzero.edges <- subset(el, (Knows > 0 | advice > 0))
@@ -35,42 +37,46 @@ el.nonzero.edges <- subset(el, (Knows > 0 | advice > 0))
 g1 <- graph.data.frame(el)
 summary(g1)
 
-alters <- V(g1)
 
-attribs <- read.csv('Attributes.tmp')
-attribs[,1] <- attribs[,1]-1
-names(attribs)[1] <- "Vertex"
+alters <- V(g1)
+el$alter %in% el$ego
+
+attribs <- read.table('Attributes.txt',header=TRUE,stringsAsFactors=FALSE)
+#attribs[,1] <- attribs[,1]-1
+#names(attribs)[1] <- "Vertex"
 # Set vertex attributes
 for (i in V(g1)) {
   for (j in names(attribs)) {
-    g1 <- set.vertex.attribute(g1, j, index=i, attribs[i+1,j])
+    ix <- match(V(g1)$name[i],attribs[,1])
+    if (is.na(ix)) stop("Invalid name")
+    g1 <- set.vertex.attribute(g1, j, index=i, attribs[ix,j])
   }
 }
 summary(g1)
 
 int_vertex_colors <- get.vertex.attribute(g1,"Interviewed")
 colors <- c('Lightblue', 'Red')
-int_vertex_colors[int_vertex_colors == 1] <- colors[1]
-int_vertex_colors[int_vertex_colors == 2] <- colors[2]
+int_vertex_colors[int_vertex_colors == 'No'] <- colors[1]
+int_vertex_colors[int_vertex_colors == 'Yes'] <- colors[2]
 
 knows <- delete.edges(g1, E(g1)[get.edge.attribute(g1,name = "Knows")==0])
 
 
 summary(knows)
 deg.know <- degree(knows,mode='in')
-ix <- which(degree(knows)==0) - 1
-knows.noiso <- delete.vertices(knows,ix)
+
+knows.noiso <- delete.vertices(knows,V(knows)[degree(knows)==0])
 
 x11(width=12,height=8)
-plot(knows, layout=layout.kamada.kawai,edge.arrow.size=.3,vertex.size=5,
+plot(knows.noiso, layout=layout.kamada.kawai,edge.arrow.size=.3,vertex.size=5,
      vertex.label=NA,vertex.color=int_vertex_colors)
 #dev.off()
 
 advice <- delete.edges(g1, E(g1)[get.edge.attribute(g1,name = "advice")==0])
 summary(advice)
 
-ix <- which(degree(advice)==0) - 1 
-advice.noiso <- delete.vertices(advice,ix)
+
+advice.noiso <- delete.vertices(advice,V(advice)[degree(advice)==0])
 deg.adv <- degree(advice,mode='in')
 plot(degree.distribution(advice.noiso))
 #pdf('NetworkPlot1.pdf')
@@ -102,8 +108,7 @@ deg.lead <- degree(leader,mode='in')
 influence <- delete.edges(g1, E(g1)[get.edge.attribute(g1,name = "influence")!=1])
 
 
-ix <- which(deg.lead==0) - 1 
-leader.noiso <- delete.vertices(leader,ix)
+leader.noiso <- delete.vertices(leader,V(leader)[degree(leader)==0])
 deg.lead.no <- degree(leader.noiso, mode='in')
 
 x11(width=10,height=6)
@@ -112,8 +117,7 @@ tkplot(leader.noiso,layout=layout.kamada.kawai,edge.arrow.size=1,vertex.label=de
 dev.off()
 
 deg.inf <- degree(influence, mode='in')
-ix <- which(deg.inf==0) - 1 
-infl.noiso <- delete.vertices(influence,ix)
+infl.noiso <- delete.vertices(influence,V(influence)[degree(influence)==0])
 deg.inf.no <- degree(infl.noiso, mode='in')
 
 x11(width=10,height=6)
@@ -124,7 +128,7 @@ dev.off()
 library(xtable)
 xtable(data.frame(alters$name,deg.know,deg.adv,deg.lead,deg.inf),digits=0)
 
-library(xtable)
+
 xtable(data.frame(alters$name,deg.adv),digits=0)
 #tk1 <- tkplot(g1,layout=layout.kamada.kawai,vertex.label=NA,vertex.size=5)
 
@@ -201,10 +205,10 @@ table(eb.adv.mem$membership)
 eb.adv$bridges
 eb.adv$removed.edges    
 eb.adv$edge.betweenness
-brdg.colors <- rep('grey',199)
+brdg.colors <- rep('grey',length(eb.adv$removed.edges))
 brdg.colors[eb.adv$removed.edges[1:5]] <- 'red'
 brdg.colors[eb.adv$removed.edges[1:5]] <- 'red'
-brdg.wd <- rep(1,199)
+brdg.wd <- rep(1,length(eb.adv$removed.edges))
 brdg.wd[eb.adv$removed.edges[1:5]] <- 5
 
 tkplot(advice.noiso, layout=layout.kamada.kawai,edge.arrow.size=1,vertex.size=5,
@@ -213,8 +217,8 @@ tkplot(advice.noiso, layout=layout.kamada.kawai,edge.arrow.size=1,vertex.size=5,
 
 ##### Network of people interviewed only
 
-V.notint <- V(knows)[V(knows)$Interviewed==1]
-net.interview <- delete.vertices(knows,10:(vcount(knows)-1))
+V.notint <- V(knows)[V(knows)$Interviewed=='Yes']
+net.interview <- delete.vertices(knows,V(knows)[V(knows)$Interviewed=='No'])
 summary(net.interview)
 dens <- function(g){
   n.edge <- ecount(g)
