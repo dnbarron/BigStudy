@@ -1,0 +1,590 @@
+Network analysis using Big Study data
+========================================================
+
+```{r init, echo=FALSE, message=FALSE}
+opts_chunk$set(cache=FALSE, echo=FALSE)
+library(igraph)
+library(stringr)
+
+setwd("~/Big Study")
+```
+# Data preparation 
+
+## Read interpersonal network data
+
+Each person interviewed has two csv files, one has the name FirstnameLastname.csv,
+the other the name FirstnameLastnameOrgs.csv.  The first has data on relationships with other invividuals, the second relationships with other organizations.  
+**DO NOT PUT OTHER csv FILES IN THE DIRECTORY**
+
+```{r readdata, cache=TRUE}
+fns <- dir(pattern='*.csv')  # Gets all csv file names
+# There is a file Professions.csv that has to be excluded
+ix2 <- which(str_detect(fns,"Profession"))
+fns <- fns[-ix2]
+ix <- str_detect(fns,"Orgs")  # TRUE when filename has Orgs in it, FALSE otherwise
+org.fns <- fns[ix]  # Vector of organizational data files
+fns <- fns[!ix]  # Vector of interpersonal data filenames
+n <- length(fns)  # number of interperson filenames
+nets <- list()   # nets will hold data
+for (i in 1:n){
+    nets[[i]] <- read.csv(fns[i],skip=5,header=FALSE,nrows=77)
+}
+```
+
+## Data is taken from each component of the list and combined.
+
+```{r personalnets, cache=TRUE}
+el <- data.frame()  # Data will be in this dataframe
+
+for (i in 1:n){
+  tmp <- nets[[i]][,c(1,2,3,4,6,7,8)]  # don't include col 5 as this is attribute
+  ego <- str_sub(fns[i],1,-5)  # Take ego name from the original filename
+  sp2 <- str_locate(tmp[,1],' [A-Z]')  # Locate space in alter's name
+  # Then use this location to create alter name without space
+  alter <- paste(substr(tmp[,1],1,sp2[,1]-1),substring(tmp[,1],sp2[,2]),sep="")
+  # Correct a couple of inconsistencies in people's names
+  alter <- ifelse(alter=='RachaelWiliams','RachaelWilliams',alter)  
+  alter <- ifelse(alter=='SuEdwards','SueEdwards',alter)
+  # Get rid of -1 s in advice variable
+  tmp[,4] <- ifelse(tmp[,4]<=0, 0, 1)
+  # Create data frame by stacking data from each ego
+  el <- rbind(el,data.frame(ego,alter,Knows=tmp[,2],Strength=tmp[,3],
+                advice=tmp[,4],leadership=tmp[,5],influence=tmp[,6]))
+}
+ix <- order(el$ego)
+el <- el[ix,]
+
+```
+
+## Add attribute data
+
+```{r attributes}
+## Basic attribute data, has whether interviewed and org name
+atts <- read.table("Attributes.txt",header=TRUE,stringsAsFactors=FALSE)
+atts <- atts[,-3]
+orgs <- sort(unique(atts[,3]))
+org.ids <- 1:length(orgs)
+orgs.dta <- data.frame(OrganizationName=orgs, OrganizationID = org.ids)
+
+atts.2 <- merge(atts,orgs.dta,by="OrganizationName")
+  ix2 <- order(atts.2$Name)
+atts.2 <- atts.2[ix2,]
+
+## > names(atts)
+##[1] "Name"             "Interviewed"      "OrganizationName"
+ 
+## Data on professional background
+prof <- read.csv('Profession.csv',stringsAsFactor=FALSE)
+prof$Name <- paste(prof[,1],prof[,2],sep='')
+prof <- prof[,-c(1,2)]
+prof[,1] <- factor(prof[,1],levels=c(1:5,99),labels=c('Nurse','Doctor','Allied HP','Social service','Manager','Unknown'))
+ix <- prof[,1] == 'Unknown'
+prof[ix,1] <- NA
+all.atts <- merge(atts.2,prof,by='Name',all.x=TRUE)
+names(all.atts)
+# [1] "Name"             "Interviewed"      "OrganizationName" "Profession"      
+```
+
+```{r mergeorgs}
+## Test 
+ix.e <- order(el$ego)
+el <- el[ix.e,]
+
+if (all.equal(atts.2[atts.2$'Interviewed'=='Yes','Name'],levels(el$ego))){
+
+  # Merge network data and attribute data
+  el.2 <- merge(el,all.atts,by.x="ego",by.y='Name',all.x=TRUE)
+  names(el.2)[8] <- 'EgoOrganization'
+  names(el.2)[10] <- 'EgoOrganizationID'
+
+  el.3 <- merge(el.2,all.atts,by.x="alter",by.y='Name',all=TRUE)
+  names(el.3)[12] <- 'AlterOrganization'
+  names(el.3)[14] <- 'AlterOrganizationID'
+  ix.e2 <- order(el.3$ego)
+  el.3 <- el.3[ix.e2,]
+  names(el.3)
+#  [1] "alter"               "ego"                 "Knows"              
+#  [4] "Strength"            "advice"              "leadership"         
+#  [7] "influence"           "EgoOrganization"     "Interviewed.x"      
+# [10] "EgoOrganizationID"   "Profession.x"        "AlterOrganization"  
+# [13] "Interviewed.y"       "AlterOrganizationID" "Profession.y"   
+  
+  el.org <- el.3[,c(8,12,3,5,6,7)]
+  attrib.org <- el.3[,c(10,2,1,4,8,12,9)]
+  names(attrib.org)[7] <- 'Interviewed'
+}
+```
+## Create `igraph` objects
+
+```{r graps}
+# Remove zero edges
+el.nonzero.edges <- subset(el, (Knows > 0 | advice > 0))
+
+# Create igraph object
+g1 <- graph.data.frame(el)
+summary(g1)
+alters <- V(g1)
+
+
+### Attach vertex attributes
+for (i in V(g1)) {
+  for (j in names(all.atts)) {
+    ix <- match(V(g1)$name[i],all.atts[,1])
+    if (is.na(ix)) stop("Invalid name")
+    g1 <- igraph::set.vertex.attribute(g1, j, index=i, all.atts[ix,j])
+  }
+}
+
+## Setup vertex colors for plotting
+int_vertex_colors <- igraph::get.vertex.attribute(g1,"Interviewed")
+colors <- c('Lightblue', 'Red')
+int_vertex_colors[int_vertex_colors == 'No'] <- colors[1]
+int_vertex_colors[int_vertex_colors == 'Yes'] <- colors[2]
+
+prof_vertex_colors <- igraph::get.vertex.attribute(g1,'Profession')
+colors <- c('Lightblue', 'Red','Green','Yellow','Orange')
+prof_vertex_colors[prof_vertex_colors == 'Nurse'] <- colors[1]
+prof_vertex_colors[prof_vertex_colors == 'Doctor'] <- colors[2]
+prof_vertex_colors[prof_vertex_colors == 'Allied HP'] <- colors[2]
+prof_vertex_colors[prof_vertex_colors == 'Social service'] <- colors[2]
+prof_vertex_colors[prof_vertex_colors == 'Manager'] <- colors[2]
+
+```
+
+
+```{r grc}
+# Only implemented for unweighted, directed graphs
+grc <- function(g, local=FALSE){
+  n <- length(V(g))
+  local.rc <- vector(length=n)
+  for (i in 1:n){
+    local.rc[i] <- (length(subcomponent(g, i, mode='out')) - 1) / (n-1)
+  }
+  Cmax <- max(local.rc)
+  glob.reach <- sum(Cmax - local.rc)/(n-1)
+  if (local) {
+    return(list(grc=glob.reach,local=local.rc))
+  }
+  else {
+    return(glob.reach)
+  }
+}
+```
+
+
+# Initial analysis of 'Known' network
+
+```{r knows}
+# Create separate network
+knows <- delete.edges(g1, E(g1)[get.edge.attribute(g1,name = "Knows")==0])
+deg.know <- degree(knows,mode='in')
+deg.know.tab <- table(deg.know)
+# Create network with isolates removed
+knows.noiso <- delete.vertices(knows,V(knows)[degree(knows)==0])
+
+plot(knows.noiso, layout=layout.kamada.kawai,edge.arrow.size=.3,vertex.size=5,
+     vertex.label=NA,vertex.color=int_vertex_colors)
+
+plot(knows.noiso, layout=layout.kamada.kawai,edge.arrow.size=.3,vertex.size=5,
+     vertex.label=NA,vertex.color=prof_vertex_colors)
+
+plot(degree.distribution(knows))
+```
+
+
+## Advice network
+
+```{r advice}
+advice <- delete.edges(g1, E(g1)[get.edge.attribute(g1,name = "advice")==0])
+summary(advice)
+deg.adv <- degree(advice,mode='in')
+
+advice <- delete.vertices(advice,V(advice)[degree(advice)==0])
+deg.adv <- degree(advice,mode='in')
+#plot(degree.distribution(advice.noiso))
+
+plot(advice, layout=layout.fruchterman.reingold.grid,edge.arrow.size=.3,
+     vertex.label=NA,vertex.color=int_vertex_colors,vertex.size=3)
+plot(advice.noiso, layout=layout.fruchterman.reingold.grid,edge.arrow.size=.3,
+     vertex.label=NA,vertex.color=prof_vertex_colors,vertex.size=3)
+
+plot(degree.distribution(advice))
+```
+
+```{r advBetween, eval=FALSE}
+### Betweenness community structure
+
+
+eb.adv <- edge.betweenness.community(advice.noiso,directed=FALSE)
+eb.adv.mem <- community.to.membership(advice.noiso, eb.adv$merges, steps=9)
+modularity(advice.noiso, eb.adv.mem$membership)
+table(eb.adv.mem$membership)
+eb.adv$bridges
+eb.adv$removed.edges    
+eb.adv$edge.betweenness
+brdg.colors <- rep('grey',length(eb.adv$removed.edges))
+brdg.colors[eb.adv$removed.edges[1:5]] <- 'red'
+brdg.colors[eb.adv$removed.edges[1:5]] <- 'red'
+brdg.wd <- rep(1,length(eb.adv$removed.edges))
+brdg.wd[eb.adv$removed.edges[1:5]] <- 5
+```
+
+## Leadership network
+
+```{r leader}
+leader <- delete.edges(g1, E(g1)[get.edge.attribute(g1,name = "leadership")!=1])
+deg.lead <- degree(leader,mode='in')
+leader.noiso <- delete.vertices(leader,V(leader)[degree(leader)==0])
+deg.lead.no <- degree(leader.noiso, mode='in')
+
+plot(leader.noiso, layout=layout.fruchterman.reingold.grid,edge.arrow.size=.3,
+     vertex.label=NA,vertex.color=int_vertex_colors,vertex.size=3)
+plot(leader.noiso, layout=layout.fruchterman.reingold.grid,edge.arrow.size=.3,
+     vertex.label=NA,vertex.color=prof_vertex_colors,vertex.size=3)
+
+plot(degree.distribution(leader))
+```
+
+
+# How hierarchical are the networks?
+
+Use a measure called the *global reach centralisation*.  Based on out-ties, this is likely to be high for the full networks, as out-ties are restricted to the people interviewed (22 out of 78).
+
+GRC for Knows: `r grc(knows)`
+
+GRC for Advice: `r grc(advice)`
+
+GRC for Leadership: `r grc(leader)`
+
+Same again, but without isolates
+
+These figures suggest a high degree of hierarchy, but this is almost certainly because only 22 of the 78 network members were interviewed, so they are the only ones with out-degrees.
+
+GRC for Knows: `r grc(knows.noiso)`
+
+GRC for Advice: `r grc(advice.noiso)`
+
+GRC for Leadership: `r grc(leader.noiso)`
+
+
+```{r advicerand, eval=FALSE}
+# This function generates random networks with the same in and out-degree and also rewires randomly (as in the grc article).  Used to test the grc function
+
+grc.rand <- function(g, niter=100, rwiter=100){
+  indeg <- degree(g, mode='in')
+  outdeg <- degree(g, mode='out')
+  rand.grcs <- vector(length=niter)
+  for (i in 1:niter){
+    tmp <- degree.sequence.game(outdeg, indeg, method='simple')
+    adv.rand <- rewire(tmp, niter=rwiter)
+    rand.grcs[i] <- grc(adv.rand)
+  }
+  rand.grcs
+}
+(adv.rands <- grc.rand(advice.noiso, niter=100, rwiter=5000))
+
+library(igraphdata)
+data(macaque)
+mean(degree(macaque,mode='out'))
+grc(macaque)
+
+neural <- read.graph("celegansneural.gml",format="gml")
+mean(degree(neural,mode='out'))
+grc(neural)
+n.rnd <- grc.rand(neural)
+summary(n.rnd)
+```
+
+# Use only subnetworks of people who were interviewed
+
+First, need to generate the subnets, then plot them.
+
+```{r subnets}
+knows.int <- delete.vertices(knows,V(knows)$Interviewed=='No')
+knows.deg <- degree(knows.int, mode='in')
+plot(knows.int, edge.arrow.size=.5, vertex.color=prof_vertex_colors, layout=layout.fruchterman.reingold.grid, vertex.size=knows.deg, main='Knows')
+
+advice.int <- delete.vertices(advice,V(advice)$Interviewed=='No')
+adv.deg <- degree(advice.int, mode='in')
+plot(advice.int, edge.arrow.size=.5, vertex.color=prof_vertex_colors, layout=layout.fruchterman.reingold.grid, vertex.size=adv.deg, main='Advice')
+
+leader.int <- delete.vertices(leader,V(leader)$Interviewed=='No')
+lead.deg <- degree(leader.int, mode='in')
+plot(leader.int, edge.arrow.size=.5, vertex.color=prof_vertex_colors, layout=layout.fruchterman.reingold.grid, vertex.size=lead.deg, main='Leadership')
+```
+
+GRC for Knows: `r grc(knows.int)`
+
+GRC for Advice: `r grc(advice.int)`
+
+GRC for Leadership: `r grc(leader.int)`
+
+
+All of these networks have no hierarchy according to the global reach centrality measure.  This should be confirmed by a dyad census, which should show many mutual ties. In each network there are 22 people, so (22^2 - 22)/2 = 231 pairs.  This is used to express numbers of types of dyad as a proportion.
+
+```{r dyad}
+know.dyad <- dyad.census(knows.int)
+
+adv.dyad <- dyad.census(advice.int)
+
+lead.dyad <- dyad.census(leader.int)
+```
+
+Relation | Mutual ties | Assymatric ties | Null ties
+---------|-------------|-----------------|---------------------------------------------
+Knows | `r know.dyad$mut` | `r know.dyad$asym` | `r know.dyad$null`
+(Proportions) | `r know.dyad$mut/231` | `r know.dyad$asym/231` | `r know.dyad$null/231`
+Advice | `r adv.dyad$mut` | `r adv.dyad$asym` | `r adv.dyad$null`
+(Proportions) | `r adv.dyad$mut/231` | `r adv.dyad$asym/231` | `r adv.dyad$null/231`
+Leadership | `r lead.dyad$mut` | `r lead.dyad$asym` | `r lead.dyad$null`
+(Proportions) | `r lead.dyad$mut/231` | `r lead.dyad$asym/231` | `r lead.dyad$null/231`
+
+As we would expect, much less reciprocity in *advice* than *knows* and less still in *leadership*. There is some evidene of status hiearchy in this, so think about other ways of investigating this. 
+
+## Do people who give advice ask for advice from the people to whom they have given it?
+
+```{r recipadvice, echo=FALSE}
+reciprocity <- function(m){
+# Katz and Power index
+  ## 2 April 2013
+  ## Skvoretz and Agneesens (2007) "Reciprocity, Multiplexity and Exchange Measures
+  ## Quality and Quantity 41: 341-357
+  require(igraph)
+  if (!is.igraph(m)) stop('igraph object required')
+  if (!igraph::is.directed(m)) stop('Graph must be directed')
+  deg <- degree(m, mode='out')
+  n <- length(deg)
+  tot.tie <- sum(deg)
+  mut.exp <- (tot.tie^2 - tot.tie) / (2 * (n * (n - 1) - 1))
+  mut.tot <- tot.tie / 2
+  mut.obs <- dyad.census(m)$mut
+  (mut.obs - mut.exp) / (mut.tot - mut.exp)
+}
+
+deg.cor <- function(m){
+  in.deg <- degree(m,mode='in')
+  out.deg <- degree(m, mode='out')
+  cor(in.deg,out.deg)
+}
+
+cyclicality <- function(m){
+  # Function to caclulate cyclicality, defined as number of cycles divided by number of triads with at least 2 components of a cycle.
+  # Reguires igraph graph object
+  require(igraph)
+  if (!is.igraph(m)) stop('igraph object required')
+  if (!igraph::is.directed(m)) stop('Graph must be directed')
+  tri <- triad.census(m)
+  cyc <- tri[10]
+  tot <- sum(tri[c(6,10)])
+  cyc / tot
+}
+
+know.recip <- reciprocity(knows.int)
+know.degcor <- deg.cor(knows.int)
+know.cyc <- cyclicality(knows.int)
+
+adv.recip <- reciprocity(advice.int)
+adv.degcor <- deg.cor(advice.int)
+adv.cyc <- cyclicality(advice.int)
+
+lead.recip <- reciprocity(leader.int)
+lead.degcor <- deg.cor(leader.int)
+lead.cyc <- cyclicality(leader.int)
+
+know.igrecip <- igraph::reciprocity(knows.int)
+adv.igrecip <- igraph::reciprocity(advice.int)
+lead.igrecip <- igraph::reciprocity(leader.int)
+```
+
+Correlation between in-degree and out-degree shows if people who ask lots of others for advice don't get asked for advice by a lot of people, and vice versa.
+
+Reciprocity depends on working out the expected number of mutual ties given the total number of ties in the network.  So, this is conditioning on the number of ties (an alterative to  proportion of reciprocal ties is to total possible ties shown above).
+
+Finally, can look at cyclicality, number of cycles as proportion of triads with at least 2 parts of the cycle.
+
+
+Measure  |  Knows  |  Advice | Leadership
+---------|---------|---------|------------------------------------------------------
+Correlation of in- and out-degree | `r know.degcor` | `r adv.degcor` | `r lead.degcor`
+Reciprocity | `r know.recip` | `r adv.recip` | `r lead.recip`
+Cyclicality | `r know.cyc` | `r adv.cyc` | `r lead.cyc`
+igraph Reciprocity| `r know.igrecip` | `r adv.igrecip` | `r lead.igrecip`
+
+These measures are all quite high, and suggest that there is a high degree of mutual support in the network.  This is particularly evident in the advice network, although even people who are identified as leaders often reciprocate the identification.
+
+# Centrality
+
+```{r cent}
+adv.bet <- betweenness(advice.int)
+lead.bet <- betweenness(leader.int)
+adv.cons <- constraint(advice.int)
+lead.cons <- constraint(leader.int)
+```
+## Advice: Betweenness
+
+`r adv.bet`
+
+## Advice: Burt's constraint
+
+`r adv.cons`
+
+## Leadership: Betweenness
+
+`r lead.bet`
+
+## Leadership: Burt's constraint
+
+`r lead.cons`
+
+
+# Structural equivance in advice network
+
+Another approach to investigating networks is to look for evidence of equivalent groups.  These would be groups of respondents who have similar patterns of ties to other respondents.  
+
+### Looking just at *in* ties (get approached for advice)
+```{r advicestrucin}
+# Make labels for dendograms
+labs <- V(advice.int)$name
+lablst <- str_extract_all(labs,'[A-Z]')
+labs <- sapply(lablst,function(x) paste(x[1],x[2],sep=''))
+
+
+advice.jac <- similarity.jaccard(advice.int, mode='in')
+advice.jac.clus <- hclust(as.dist(1-advice.jac), method='ave')
+plot(advice.jac.clus, labels=labs)
+
+clus1 <- c(5,13,14,16)
+clus2 <- c(1,6,17)
+clus3 <- setdiff(1:22,c(clus1,clus2))
+#V(advice.int)[clus1]
+#V(advice.int)[clus2]
+#V(advice.int)[clus3]
+deg.ad.int <- degree(advice.int, mode='in')
+deg.ad.int[clus1]
+deg.ad.int[clus2]
+deg.ad.int[clus3]
+```
+
+This seems to show three structurally equivalent groups, the first two of which are less approached for advice than the others. (Jane Houghton and Rachel Bloomer are exceptions as they have only 9 nominations, but are in third cluster.)
+
+### Looking just at *out* ties (approach others for advice)
+```{r advicestrucout}
+
+advice.jac.out <- similarity.jaccard(advice.int, mode='out')
+advice.jac.out.clus <- hclust(as.dist(1-advice.jac.out), method='ave')
+plot(advice.jac.out.clus, labels=labs)
+
+clus1 <- c(5,13,14,16)
+clus2 <- setdiff(1:22,clus1)
+#V(advice.int)[clus1]
+#V(advice.int)[clus2]
+
+deg.ad.int.out <- degree(advice.int, mode='out')
+deg.ad.int.out[clus1]
+deg.ad.int.out[clus2]
+
+```
+
+People who get asked for advice least also ask for advice least.
+
+### Looking both type of ties together
+```{r advicestrucboth}
+
+advice.jac.all <- similarity.jaccard(advice.int, mode='all')
+advice.jac.all.clus <- hclust(as.dist(1-advice.jac.all), method='ave')
+plot(advice.jac.all.clus, labels=labs)
+
+clus1 <- c(5,13,14,16)
+clus2 <- c(6,11)
+clus3 <- setdiff(1:22,c(clus1,clus2))
+ 
+#V(advice.int)[clus1]
+#V(advice.int)[clus2]
+#V(advice.int)[clus3]
+
+deg.ad.int.all <- degree(advice.int, mode='all')
+deg.ad.int.all[clus1]
+deg.ad.int.all[clus2]
+deg.ad.int.all[clus3]
+```
+
+
+
+## Structural equivance in leader network
+### Looking just at *in* ties (nominated as leaders)
+
+```{r leaderstrucin}
+leader.jac <- similarity.jaccard(leader.int, mode='in')
+leader.jac.clus <- hclust(as.dist(1-leader.jac), method='ave')
+plot(leader.jac.clus, labels=labs)
+
+clus1 <- c(1,17,19,20)
+clus2 <- c(5,13)
+clus3 <- c(14,16,18,22)
+clus4 <- setdiff(1:22,c(clus1,clus2,clus3))
+#V(leader.int)[clus1]
+#V(leader.int)[clus2]
+#V(leader.int)[clus3]
+#V(leader.int)[clus4]
+
+deg.lead.int <- degree(leader.int, mode='in')
+deg.lead.int[clus1]
+deg.lead.int[clus2]
+deg.lead.int[clus3]
+deg.lead.int[clus4]
+
+```
+# Regular equivalence
+
+```{r releader, message=FALSE}
+# Need to create network package object
+lead.adj <- get.adjacency(leader.int, sparse=FALSE)
+lead.net <- network::as.network.matrix(lead.adj)
+lead.re <- sna::redist(lead.net)
+lead.re.mds <- cmdscale(as.dist(lead.re))
+clus1 <- c(1,2,6,8,14,22)
+clus2 <- c(3,4,15,19,20,21)
+clus3 <- c(5,13)
+clus4 <- c(7,10,11,12,16,17)
+clus5 <- 9
+clus6 <- 18
+
+plot(lead.re.mds, main='MDS of regular equivalence' )
+
+V(leader.int)[clus1]
+V(leader.int)[clus2]
+V(leader.int)[clus3]
+V(leader.int)[clus4]
+V(leader.int)[clus5]
+V(leader.int)[clus6]
+
+colors <- RColorBrewer::brewer.pal(6,'Accent')
+bgcolors <- paste(colors,'4C',sep='')
+re_vertex_colors <- 1:22
+re_vertex_colors[clus1 ] <- colors[1]
+re_vertex_colors[clus2] <- colors[2]
+re_vertex_colors[clus3] <- colors[3]
+re_vertex_colors[clus4] <- colors[4]
+re_vertex_colors[clus5] <- colors[5]
+re_vertex_colors[clus6] <- colors[6]
+
+plot(leader.int, mark.groups=list(clus1,clus2,clus3,clus4,clus5,clus6), edge.arrow.size=.5,vertex.color=re_vertex_colors, layout=layout.fruchterman.reingold.grid, mark.col=bgcolors,mark.border=colors, vertex.size=deg.lead.int)
+
+ lead.eq <- sna::equiv.clust(lead.net,equiv.dist=lead.re, cluster.method='ave')
+sna::plot.equiv.clust(lead.eq, labels=labs)
+detach(package:network)
+
+```
+
+```{r leadrean, eval=FALSE}
+### Plot blockmodel from regular equivalence
+
+memb.vec <- 1:22
+for (i in 1:6){
+  cn <- paste('clus',1:6,sep='')
+  memb.vec[get(cn[i])] <- i
+}
+leadbm <- sna::blockmodel(lead.net,memb.vec)
+sna::plot.blockmodel(leadbm)
+```
+

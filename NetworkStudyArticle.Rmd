@@ -1,0 +1,237 @@
+A Paediatric Paliative Care Network
+========================================================
+
+# Introduction
+
+In  contrast  to  the  hierarchical  structure  of  the  past  and  the  market  model  of  the  1980s,  the  New Labour government’s reforms of the NHS were based upon collaboration and partnership working. This  model  was  first  developed  within  cancer  services.  The  Calman-Hine  Report  (1995)  had recommended that care for cancer patients should be based around managed networks of expertise and  include  the  voluntary  sector.  These  networks  that  moved  beyond  the  informal  professional groupings of the past gradually spread across a wide range of specialities. 
+
+The  most  widely  accepted  definition  of  a  clinical  network  was  first  set  out  by  the  Scottish  Office Department  of  Health  in  1999:  “Linked  groups  of  professionals  and  organisations  from  primary, secondary   and   tertiary   care,   working   in   a   co-ordinated   manner,   unconstrained   by   existing professional [and organisational] boundaries, to ensure equitable provision of high quality, clinically effective  services.”  Networks  increasingly  came  to  be  seen  as  a  solution  to  the  co-ordination  of services for patients who require care from multi-disciplinary and multi-site teams. Partnership and network based working at all levels of care was a major policy theme in the NHS Plan (2000).  
+
+Within  paediatric  care,  Getting  it  right  for  children  and  young  people  (2010)  proposed  that  the development of successful networks was the best means to manage the complexity of the NHS and enable children to move seamlessly from one service to another. The most effective were considered to  be  the  more  formalised  and  managed  networks  as  already  found  in  newborn,  palliative  and surgical  care. Recommendation  35  states: “There  should  be  local  networks  through  which  services can share information electronically and protocols should be agreed by the networks to provide for this.” 
+
+As  networks  have  developed  and  their  impact  upon  the  delivery  of  health  care  become  more important,  researchers  have  looked  to  social  science  theories  to  examine  their  strengths  and weaknesses and possible implications for the NHS.
+
+One important element in the success of a clinical care network, then, will be the ability of members of different organizations within the network to communicate effectively with each other and, in particular, to transfer knowledge across organizational boundaries.
+
+# Data and methods
+
+The members of the West Midlands Paediatric Palliative Care Network were identified through the chair  Claire  Thomas  and  a  list  of  member  names  and  e-mail  addresses  was  made  available to  the research  team  at  the  University  of  Greenwich.  An  invitation  to  participate  in  the  survey  was distributed  by  e-mail  to  network members,  who  clicked  on  the  attached  link  to  access  the  survey. The survey took approximately 15 minutes to complete. At the end of the questionnaire respondents were  asked  to  take  part  in  a  semi-structured  telephone  interview  of  about  45-60  minutes.  Any recipient who  did  not  click  the  link  in  the  e-mail  was  sent  an  electronic  reminder  after two  weeks inviting them to take part in the survey. A second reminder was sent out after four weeks to those who  had  not  yet taken  the  survey.  A paper version of  the survey was also  handed  out at  network meetings.
+
+A total of 75 individual members of the network were identified; 22 of them completed network questionnaires. The most important aspects of the questionnaires involved people indicating which of the other 77 network members they 
+
+1. Knew
+2. Have worked with in the past 12 months
+3. Would go to for advice or information about a work related problem
+4. Think occupies a leadership role 
+5. Is influential outside the membership network
+
+Most of the analysis has to be restricted to the sub-networks of the 22 respondents, as only this enables us to look at a directed network, and thus to explore issues of reciprocity and mutuality in relationships.  
+
+We look for evidence of any type of hiearchical structure in the networks of advice and leadership.  We begin with relatively simple descriptive statistics of the networks.  For example, a high proportion of mutual ties in the advice network (that is, where two people would turn to each other for advice) is an indicator of a lack of a status hierarchy.  Such a network would suggest that advice and information can flow freely through the network.
+
+Descriptive statistics, though, suffer from it being difficult to know whether the numbers we obtain are high or low.  This can be addressed to some extent by holding constant some characteristics of the network, such as the total number of ties, and generating a large number of random networks with these properties.  We can then compare the descriptive statistics from the observed networks with those from the random networks to get a sense of how much they differ from those that would have been expected if network ties were created purely at random.
+
+Finally, we would also like to explore more models that allow us to investigate whether the existence of ties in these networks can be explained by reference to characteristics of individual network members.  For example, it is possible that longer-serving members are more likely to be viewed as leaders or approached for advice because they are viewed as having greater expertise.  It is also possible that there are 'homophily' effects in tie formation.  This well-known characteristic of many networks is often summarised with the saying, 'Birds of a feather flock together'.  In these networks, we are particularly interested to see whether professional background helps explain the existence of ties; if it does, then this suggests that professional boundaries could present barriers to effective information flow within the network.  This type of study involves the use of exponential random graph models (ergm).
+
+# Results
+
+## Descriptive statistics
+
+```{r init, echo=FALSE, message=FALSE}
+library(knitr)
+opts_chunk$set(cache=FALSE, echo=FALSE)
+library(igraph)
+library(stringr)
+library(cairoDevice)
+setwd("~/Big Study")
+```
+
+```{r readdata, cache=TRUE}
+fns <- dir(pattern='*.csv')  # Gets all csv file names
+# There is a file Professions.csv that has to be excluded
+ix2 <- which(str_detect(fns,"Profession"))
+fns <- fns[-ix2]
+ix <- str_detect(fns,"Orgs")  # TRUE when filename has Orgs in it, FALSE otherwise
+org.fns <- fns[ix]  # Vector of organizational data files
+fns <- fns[!ix]  # Vector of interpersonal data filenames
+n <- length(fns)  # number of interperson filenames
+nets <- list()   # nets will hold data
+for (i in 1:n){
+    nets[[i]] <- read.csv(fns[i],skip=5,header=FALSE,nrows=77)
+}
+```
+
+```{r personalnets, cache=TRUE}
+el <- data.frame()  # Data will be in this dataframe
+
+for (i in 1:n){
+  tmp <- nets[[i]][,c(1,2,3,4,6,7,8)]  # don't include col 5 as this is attribute
+  ego <- str_sub(fns[i],1,-5)  # Take ego name from the original filename
+  sp2 <- str_locate(tmp[,1],' [A-Z]')  # Locate space in alter's name
+  # Then use this location to create alter name without space
+  alter <- paste(substr(tmp[,1],1,sp2[,1]-1),substring(tmp[,1],sp2[,2]),sep="")
+  # Correct a couple of inconsistencies in people's names
+  alter <- ifelse(alter=='RachaelWiliams','RachaelWilliams',alter)  
+  alter <- ifelse(alter=='SuEdwards','SueEdwards',alter)
+  # Get rid of -1 s in advice variable
+  tmp[,4] <- ifelse(tmp[,4]<=0, 0, 1)
+  # Create data frame by stacking data from each ego
+  el <- rbind(el,data.frame(ego,alter,Knows=tmp[,2],Strength=tmp[,3],
+                advice=tmp[,4],leadership=tmp[,5],influence=tmp[,6]))
+}
+ix <- order(el$ego)
+el <- el[ix,]
+
+```
+
+```{r attributes}
+## Basic attribute data, has whether interviewed and org name
+atts <- read.table("Attributes.txt",header=TRUE,stringsAsFactors=FALSE)
+atts <- atts[,-3]
+orgs <- sort(unique(atts[,3]))
+org.ids <- 1:length(orgs)
+orgs.dta <- data.frame(OrganizationName=orgs, OrganizationID = org.ids)
+
+atts.2 <- merge(atts,orgs.dta,by="OrganizationName")
+  ix2 <- order(atts.2$Name)
+atts.2 <- atts.2[ix2,]
+
+## > names(atts)
+##[1] "Name"             "Interviewed"      "OrganizationName"
+ 
+## Data on professional background
+prof <- read.csv('Profession.csv',stringsAsFactor=FALSE)
+prof$Name <- paste(prof[,1],prof[,2],sep='')
+prof <- prof[,-c(1,2)]
+prof[,1] <- factor(prof[,1],levels=c(1:5,99),labels=c('Nurse','Doctor','Allied HP','Social service','Manager','Unknown'))
+ix <- prof[,1] == 'Unknown'
+prof[ix,1] <- NA
+all.atts <- merge(atts.2,prof,by='Name',all.x=TRUE)
+```
+
+```{r mergeorgs}
+## Test 
+ix.e <- order(el$ego)
+el <- el[ix.e,]
+
+if (all.equal(atts.2[atts.2$'Interviewed'=='Yes','Name'],levels(el$ego))){
+
+  # Merge network data and attribute data
+  el.2 <- merge(el,all.atts,by.x="ego",by.y='Name',all.x=TRUE)
+  names(el.2)[8] <- 'EgoOrganization'
+  names(el.2)[10] <- 'EgoOrganizationID'
+
+  el.3 <- merge(el.2,all.atts,by.x="alter",by.y='Name',all=TRUE)
+  names(el.3)[12] <- 'AlterOrganization'
+  names(el.3)[14] <- 'AlterOrganizationID'
+  ix.e2 <- order(el.3$ego)
+  el.3 <- el.3[ix.e2,]
+  
+  el.org <- el.3[,c(8,12,3,5,6,7)]
+  attrib.org <- el.3[,c(10,2,1,4,8,12,9)]
+  names(attrib.org)[7] <- 'Interviewed'
+}
+```
+
+```{r graps}
+# Remove zero edges
+el.nonzero.edges <- subset(el, (Knows > 0 | advice > 0))
+
+# Create igraph object
+g1 <- graph.data.frame(el)
+alters <- V(g1)
+
+
+### Attach vertex attributes
+for (i in V(g1)) {
+  for (j in names(all.atts)) {
+    ix <- match(V(g1)$name[i],all.atts[,1])
+    if (is.na(ix)) stop("Invalid name")
+    g1 <- igraph::set.vertex.attribute(g1, j, index=i, all.atts[ix,j])
+  }
+}
+
+## Setup vertex colors for plotting
+int_vertex_colors <- igraph::get.vertex.attribute(g1,"Interviewed")
+colors <- c('Lightblue', 'Red')
+int_vertex_colors[int_vertex_colors == 'No'] <- colors[1]
+int_vertex_colors[int_vertex_colors == 'Yes'] <- colors[2]
+
+prof_vertex_colors <- as.numeric(igraph::get.vertex.attribute(g1,'Profession'))
+colors <- c('Lightblue', 'Red','Green','Yellow','Orange')
+prof_vertex_colors[prof_vertex_colors == 1] <- colors[1]
+prof_vertex_colors[prof_vertex_colors == 2] <- colors[2]
+prof_vertex_colors[prof_vertex_colors == 3] <- colors[3]
+prof_vertex_colors[prof_vertex_colors == 4] <- colors[4]
+prof_vertex_colors[prof_vertex_colors == 5] <- colors[5]
+
+```
+
+
+```{r grc}
+# Only implemented for unweighted, directed graphs
+grc <- function(g, local=FALSE){
+  n <- length(V(g))
+  local.rc <- vector(length=n)
+  for (i in 1:n){
+    local.rc[i] <- (length(subcomponent(g, i, mode='out')) - 1) / (n-1)
+  }
+  Cmax <- max(local.rc)
+  glob.reach <- sum(Cmax - local.rc)/(n-1)
+  if (local) {
+    return(list(grc=glob.reach,local=local.rc))
+  }
+  else {
+    return(glob.reach)
+  }
+}
+```
+
+```{r separatenets}
+advice <- delete.edges(g1, E(g1)[get.edge.attribute(g1,name = "advice")==0])
+advice.noiso <- delete.vertices(advice,V(advice)[degree(advice)==0])
+leader <- delete.edges(g1, E(g1)[get.edge.attribute(g1,name = "leadership")!=1])
+leader.noiso <- delete.vertices(leader,V(leader)[degree(leader)==0])
+advice.int <- delete.vertices(advice,V(advice)$Interviewed=='No')
+leader.int <- delete.vertices(leader,V(leader)$Interviewed=='No')
+deg.adv <- degree(advice.noiso,mode='in')
+
+```
+
+```{r advplots }
+plot(advice.noiso, layout=layout.kamada.kawai,edge.arrow.size=.8,
+     vertex.label=NA,vertex.color=prof_vertex_colors,vertex.size=deg.adv, main="Advice network")
+legend('topleft',fill=c('Lightblue', 'Red','Green','Yellow','Orange'), legend=c('Nurse','Doctor','Allied HP','Social services','Manager'))
+```
+
+The advice network is plotted, with the seven people who received no nominations omitted.  The size of the circles is proportional to the number of times the person was nominated as a source of advice.  The degree distribution is shown below.
+
+```{r adv.deg}
+
+deg.dist <- function (graph, cumulative = FALSE, ...) 
+{
+    if (!is.igraph(graph)) {
+        stop("Not a graph object")
+    }
+    cs <- degree(graph, ...)
+    hi <- hist(cs, -1:max(cs), plot = FALSE)$density
+    if (!cumulative) {
+        res <- hi
+    }
+    else {
+        res <- rev(cumsum(rev(hi)))
+    }
+    res
+}
+plot(deg.dist(advice, mode='in'), main='Advice in-degree distribution',ylab='',type='h',xlab='In-degree') 
+```
+
+As is typical, there are a relatively small number of people who have a high degree.  Bearing in mind that the maximum possible degree is 22 (as only 22 people participated in the study), it is notable that seven people receive requests for advice from 16 or more people, which is equal to the number of people who are not asked for advice by anyone.  This is in itself evidence of a sort of status hierarchy in the network, although we cannot know whether those people who give a lot of advice also frequently seek advice.  If they do, then although that would suggest they are in some sense prominent in the network, it would give rather a different picture from one in which there are people who are seen as experts and who do not themselves need to seek advice.  However, we can investigate such questions in the sub-network of respondents.
+
+```{r subadvplot}
+adv.deg <- degree(advice.int, mode='in')
+plot(advice.int, edge.arrow.size=.8, vertex.color=prof_vertex_colors, layout=layout.kamada.kawai, vertex.size=adv.deg, vertex.label=NA,main='Advice')
+legend('topleft',fill=c('Lightblue', 'Red','Green','Yellow','Orange'), legend=c('Nurse','Doctor','Allied HP','Social services','Manager'))
+```
+
+In this sub-network we can again look for evidence of hierarchy.  The global reach centrality for this subnetwork is zero, which implies no hiearchy at all.  This is because all members of the network are strongly connected to each other.  

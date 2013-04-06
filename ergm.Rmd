@@ -1,0 +1,184 @@
+ergm models
+========================================================
+
+Do this on separate page as too easy to get clashes between igraph and network packages otherwise.
+
+
+```{r init, echo=FALSE, message=FALSE}
+library(knitr)
+opts_chunk$set(cache=FALSE, echo=FALSE)
+library(statnet)
+library(stringr)
+
+setwd("~/Big Study")
+```
+
+
+# Data preparation 
+
+## Read interpersonal network data
+
+Each person interviewed has two csv files, one has the name FirstnameLastname.csv,
+the other the name FirstnameLastnameOrgs.csv.  The first has data on relationships with other invividuals, the second relationships with other organizations.  
+**DO NOT PUT OTHER csv FILES IN THE DIRECTORY**
+
+```{r readdata, cache=TRUE}
+fns <- dir(pattern='*.csv')  # Gets all csv file names
+# There is a file Professions.csv that has to be excluded
+ix2 <- which(str_detect(fns,"Profession"))
+fns <- fns[-ix2]
+ix <- str_detect(fns,"Orgs")  # TRUE when filename has Orgs in it, FALSE otherwise
+org.fns <- fns[ix]  # Vector of organizational data files
+fns <- fns[!ix]  # Vector of interpersonal data filenames
+n <- length(fns)  # number of interperson filenames
+nets <- list()   # nets will hold data
+for (i in 1:n){
+    nets[[i]] <- read.csv(fns[i],skip=5,header=FALSE,nrows=77)
+}
+```
+
+## Data is taken from each component of the list and combined.
+
+```{r personalnets, cache=TRUE}
+el <- data.frame()  # Data will be in this dataframe
+
+for (i in 1:n){
+  tmp <- nets[[i]][,c(1,2,3,4,6,7,8)]  # don't include col 5 as this is attribute
+  ego <- str_sub(fns[i],1,-5)  # Take ego name from the original filename
+  sp2 <- str_locate(tmp[,1],' [A-Z]')  # Locate space in alter's name
+  # Then use this location to create alter name without space
+  alter <- paste(substr(tmp[,1],1,sp2[,1]-1),substring(tmp[,1],sp2[,2]),sep="")
+  # Correct a couple of inconsistencies in people's names
+  alter <- ifelse(alter=='RachaelWiliams','RachaelWilliams',alter)  
+  alter <- ifelse(alter=='SuEdwards','SueEdwards',alter)
+  # Get rid of -1 s in advice variable
+  tmp[,4] <- ifelse(tmp[,4]<=0, 0, 1)
+  # Create data frame by stacking data from each ego
+  el <- rbind(el,data.frame(ego,alter,Knows=tmp[,2],Strength=tmp[,3],
+                advice=tmp[,4],leadership=tmp[,5],influence=tmp[,6]))
+}
+ix <- order(el$ego)
+el <- el[ix,]
+
+```
+
+## Add attribute data
+
+```{r attributes}
+## Basic attribute data, has whether interviewed and org name
+atts <- read.table("Attributes.txt",header=TRUE,stringsAsFactors=FALSE)
+atts <- atts[,-3]
+orgs <- sort(unique(atts[,3]))
+org.ids <- 1:length(orgs)
+orgs.dta <- data.frame(OrganizationName=orgs, OrganizationID = org.ids)
+
+atts.2 <- merge(atts,orgs.dta,by="OrganizationName")
+  ix2 <- order(atts.2$Name)
+atts.2 <- atts.2[ix2,]
+
+## > names(atts)
+##[1] "Name"             "Interviewed"      "OrganizationName"
+ 
+## Data on professional background
+prof <- read.csv('Profession.csv',stringsAsFactor=FALSE)
+prof$Name <- paste(prof[,1],prof[,2],sep='')
+prof <- prof[,-c(1,2)]
+prof[,1] <- factor(prof[,1],levels=c(1:5,99),labels=c('Nurse','Doctor','Allied HP','Social service','Manager','Unknown'))
+ix <- prof[,1] == 'Unknown'
+prof[ix,1] <- NA
+all.atts <- merge(atts.2,prof,by='Name',all.x=TRUE)
+names(all.atts)
+# [1] "Name"             "Interviewed"      "OrganizationName" "Profession"      
+```
+
+```{r mergeorgs}
+## Test 
+ix.e <- order(el$ego)
+el <- el[ix.e,]
+
+if (all.equal(atts.2[atts.2$'Interviewed'=='Yes','Name'],levels(el$ego))){
+
+  # Merge network data and attribute data
+  el.2 <- merge(el,all.atts,by.x="ego",by.y='Name',all.x=TRUE)
+  names(el.2)[8] <- 'EgoOrganization'
+  names(el.2)[10] <- 'EgoOrganizationID'
+
+  el.3 <- merge(el.2,all.atts,by.x="alter",by.y='Name',all=TRUE)
+  names(el.3)[12] <- 'AlterOrganization'
+  names(el.3)[14] <- 'AlterOrganizationID'
+  ix.e2 <- order(el.3$ego)
+  el.3 <- el.3[ix.e2,]
+  names(el.3)
+#  [1] "alter"               "ego"                 "Knows"              
+#  [4] "Strength"            "advice"              "leadership"         
+#  [7] "influence"           "EgoOrganization"     "Interviewed.x"      
+# [10] "EgoOrganizationID"   "Profession.x"        "AlterOrganization"  
+# [13] "Interviewed.y"       "AlterOrganizationID" "Profession.y"   
+  
+  el.org <- el.3[,c(8,12,3,5,6,7)]
+  attrib.org <- el.3[,c(10,2,1,4,8,12,9)]
+  names(attrib.org)[7] <- 'Interviewed'
+}
+```
+## Create `network` objects
+
+```{r netobj}
+adv.adj <- igraph::get.adjacency(advice, sparse=FALSE)
+adv.int <- igraph::V(advice)$Interviewed
+adv.net <- network(adv.adj)
+set.vertex.attribute(adv.net,'Interviewed',adv.int)
+adv.prof <- igraph::V(advice)$Profession
+set.vertex.attribute(adv.net,'Profession',adv.prof)
+
+advice.int.net <- adv.net
+delete.vertices(advice.int.net,which(advice.int.net %v% 'Interviewed' == 'No'))
+
+lead.adj <- igraph::get.adjacency(leader, sparse=FALSE)
+lead.int <- igraph::V(leader)$Interviewed
+lead.net <- network(lead.adj)
+set.vertex.attribute(lead.net,'Interviewed',lead.int)
+lead.prof <- igraph::V(leader)$Profession
+set.vertex.attribute(lead.net,'Profession',lead.prof)
+
+lead.int.net <- lead.net
+delete.vertices(lead.int.net,which(lead.int.net %v% 'Interviewed' == 'No'))
+indeg.adv <- sna::degree(advice.int.net, cmode='indegree')
+outdeg.adv <- sna::degree(advice.int.net, cmode='outdegree')
+set.vertex.attribute(advice.int.net,'InDegree',indeg.adv)
+set.vertex.attribute(advice.int.net,'Sqrt.InDegree',sqrt(indeg.adv))
+set.vertex.attribute(advice.int.net,'OutDegree',outdeg.adv)
+set.vertex.attribute(advice.int.net,'Sqrt.OutDegree',sqrt(outdeg.adv))
+
+gden(advice.int.net)
+gtrans(advice.int.net)
+centralization(advice.int.net,betweenness)
+centralization(advice.int.net,closeness)
+
+gden(lead.int.net)
+gtrans(lead.int.net)
+centralization(lead.int.net,betweenness)
+centralization(lead.int.net,closeness)
+
+```
+
+```{r ergm1}
+e0 <- ergm(adv.net ~ edges + nodematch('Profession', diff=TRUE, keep=c(1,2,5)))
+summary(e0)
+
+
+e1 <- ergm(advice.int.net ~ edges + mutual + nodecov('Sqrt.InDegree') + nodecov('Sqrt.OutDegree') + gwesp(0.25, TRUE), control=control.ergm(MCMLE.maxit=20))
+summary(e1)
+
+e1.gof <- gof(e1,verbose=TRUE)
+
+x11()
+par(mfrow=c(2,2))
+par(oma=c(0.5,2,1,0.5))
+plot(e1.gof, plotlogodds=TRUE)
+
+summary(e1.gof)
+
+e2 <- ergm(lead.int.net ~ mutual + ctriple + ttriple + nodematch('Profession'))
+summary(e2)
+
+```

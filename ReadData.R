@@ -2,13 +2,16 @@ library(igraph)
 library(stringr)
 
 fns <- dir(pattern='*.csv')
+ix <- str_detect(fns,"Orgs")
+org.fns <- fns[ix]
+fns <- fns[!ix]
 n <- length(fns)
 nets <- list()
 for (i in 1:n){
     nets[[i]] <- read.csv(fns[i],skip=5,header=FALSE,nrows=77)
 }
 
-     
+
 el <- data.frame()
 #i <- 1
 for (i in 1:n){
@@ -30,18 +33,47 @@ alter <- ifelse(alter=='SuEdwards','SueEdwards',alter)
                 advice=tmp[,4],leadership=tmp[,5],influence=tmp[,6]))
 }
 
+ix <- order(el$ego)
+el <- el[ix,]
+
+
+atts <- read.table("Attributes.txt",header=TRUE,stringsAsFactors=FALSE)
+atts <- atts[,-3]
+orgs <- sort(unique(atts[,3]))
+org.ids <- 1:length(orgs)
+orgs.dta <- data.frame(OrganizationName=orgs, OrganizationID = org.ids)
+
+atts.2 <- merge(atts,orgs.dta,by="OrganizationName")
+ix2 <- order(atts.2$Name)
+atts.2 <- atts.2[ix2,]
+
+ix.e <- order(el$ego)
+el <- el[ix.e,]
+all.equal(atts.2[atts.2$'Interviewed'=='Yes','Name'],levels(el$ego))
+
+el.2 <- merge(el,atts.2,by.x="ego",by.y='Name',all.x=TRUE)
+names(el.2)[8] <- 'EgoOrganization'
+names(el.2)[10] <- 'EgoOrganizationID'
+
+el.3 <- merge(el.2,atts.2,by.x="alter",by.y='Name',all=TRUE)
+names(el.3)[11] <- 'AlterOrganization'
+names(el.3)[13] <- 'AlterOrganizationID'
+ix.e2 <- order(el.3$ego)
+el.3 <- el.3[ix.e2,]
+
+el.org <- el.3[,c(8,11,3,5,6,7)]
+attrib.org <- el.3[,c(10,2,1,4,8,11,9)]
+names(attrib.org)[7] <- 'Interviewed'
+
 # Reduce to non-zero edges and build a graph object
 el.nonzero.edges <- subset(el, (Knows > 0 | advice > 0))
-
 
 g1 <- graph.data.frame(el)
 summary(g1)
 
-
 alters <- V(g1)
 el$alter %in% el$ego
 
-attribs <- read.table('Attributes.txt',header=TRUE,stringsAsFactors=FALSE)
 #attribs[,1] <- attribs[,1]-1
 #names(attribs)[1] <- "Vertex"
 # Set vertex attributes
@@ -49,7 +81,7 @@ for (i in V(g1)) {
   for (j in names(attribs)) {
     ix <- match(V(g1)$name[i],attribs[,1])
     if (is.na(ix)) stop("Invalid name")
-    g1 <- set.vertex.attribute(g1, j, index=i, attribs[ix,j])
+    g1 <- set.vertex.attribute(g1, j, index=i, all.atts[ix,j])
   }
 }
 summary(g1)
@@ -233,3 +265,49 @@ dens <- function(g){
 }
 
 dens(net.interview)
+
+
+##### Professional background
+library(stringr)
+prof <- read.csv('Profession.csv',stringsAsFactor=FALSE)
+new.names <- str_split_fixed(prof$Name,', ',2)
+attr.names <- str_join(new.names[,2],new.names[,1])
+prof$Name <- attr.names
+
+
+atts.3 <- merge(atts,prof,by='Name',all.x=TRUE)
+atts.3$Profession <- factor(atts.3$Profession, levels=c(1:5,99),labels=c('Nurse','Doctor','Allied HP','Social services','Other','Missing'))
+
+atts.4 <- edit(atts.3)
+xtabs(~Profession,atts.4)
+atts.4$Profession[atts.4$Profession=='Missing'] <- NA
+atts.4$Profession <- atts.4$Profession[ , drop=TRUE]
+
+all.atts <- merge(atts.2,atts.3,by='Name',all.x=TRUE)
+all.atts <- all.atts[,-c(5,6)]
+names(all.atts)[2] <- 'OrganizationName'
+names(all.atts[3]) <- 'Interviewed'
+
+
+
+ix2 <- order(all.atts$Name)
+all.atts <- all.atts[ix2,]
+
+ix.e <- order(el$ego)
+el <- el[ix.e,]
+all.equal(all.atts[all.atts$'Interviewed'=='Yes','Name'],levels(el$ego))
+
+el.2 <- merge(el,all.atts,by.x="ego",by.y='Name',all.x=TRUE)
+names(el.2)[8] <- 'EgoOrganization'
+names(el.2)[10] <- 'EgoOrganizationID'
+
+el.3 <- merge(el.2,all.atts,by.x="alter",by.y='Name',all=TRUE)
+names(el.3)[11] <- 'AlterOrganization'
+names(el.3)[13] <- 'AlterOrganizationID'
+ix.e2 <- order(el.3$ego)
+el.3 <- el.3[ix.e2,]
+
+el.org <- el.3[,c(8,11,3,5,6,7)]
+attrib.org <- el.3[,c(10,2,1,4,8,11,9)]
+names(attrib.org)[7] <- 'Interviewed'
+
