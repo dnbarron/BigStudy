@@ -131,3 +131,19 @@ dy.op <- matrix(cbind(know.dy$mut,know.dy$asym,know.dy$null,ecount(knows.int),
 row.names(dy.op) <- c('Knows','Advice','Leader','Influence')
 colnames(dy.op) <- c('Mutual','Asymmetric','Null','Total')
 dy.op
+
+
+png('Knows.png', width=1500,height=1500,res=200, antialias='cleartype')
+plot(knows.noiso, layout=layout.kamada.kawai,edge.arrow.size=.3,vertex.size=5,
+     vertex.label=NA,vertex.color=int_vertex_colors)
+dev.off()
+
+png('Advice.png', width=1500,height=1500,res=200, antialias='cleartype')
+plot(advice, layout=layout.fruchterman.reingold.grid,edge.arrow.size=.3,
+     vertex.label=NA,vertex.color=int_vertex_colors,vertex.size=3)
+dev.off()
+
+png('Leader.png', width=1500,height=1500,res=200, antialias='cleartype')
+plot(leader.noiso, layout=layout.fruchterman.reingold.grid,edge.arrow.size=.3,
+     vertex.label=NA,vertex.color=int_vertex_colors,vertex.size=3)
+dev.off()

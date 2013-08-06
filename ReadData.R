@@ -5,8 +5,13 @@ fns <- dir(pattern='*.csv')
 ix <- str_detect(fns,"Orgs")
 org.fns <- fns[ix]
 fns <- fns[!ix]
+ix2 <- match('Profession.csv',fns)
+fns <- fns[-ix2]
+
 n <- length(fns)
+
 nets <- list()
+
 for (i in 1:n){
     nets[[i]] <- read.csv(fns[i],skip=5,header=FALSE,nrows=77)
 }
@@ -78,8 +83,8 @@ el$alter %in% el$ego
 #names(attribs)[1] <- "Vertex"
 # Set vertex attributes
 for (i in V(g1)) {
-  for (j in names(attribs)) {
-    ix <- match(V(g1)$name[i],attribs[,1])
+  for (j in names(atts)) {
+    ix <- match(V(g1)$name[i],atts[,1])
     if (is.na(ix)) stop("Invalid name")
     g1 <- set.vertex.attribute(g1, j, index=i, all.atts[ix,j])
   }

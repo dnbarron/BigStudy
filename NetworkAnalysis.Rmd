@@ -18,7 +18,7 @@ the other the name FirstnameLastnameOrgs.csv.  The first has data on relationshi
 
 ```{r readdata, cache=TRUE}
 fns <- dir(pattern='*.csv')  # Gets all csv file names
-# There is a file Professions.csv that has to be excluded
+# There s a file Professions.csv that has to be excluded
 ix2 <- which(str_detect(fns,"Profession"))
 fns <- fns[-ix2]
 ix <- str_detect(fns,"Orgs")  # TRUE when filename has Orgs in it, FALSE otherwise
@@ -77,11 +77,13 @@ atts.2 <- atts.2[ix2,]
 prof <- read.csv('Profession.csv',stringsAsFactor=FALSE)
 prof$Name <- paste(prof[,1],prof[,2],sep='')
 prof <- prof[,-c(1,2)]
-prof[,1] <- factor(prof[,1],levels=c(1:5,99),labels=c('Nurse','Doctor','Allied HP','Social service','Manager','Unknown'))
+prof[,1] <- factor(prof[,1],levels=c(1:6,99),labels=c('Nurse','Doctor','Allied HP','Social service','Manager','Other','Unknown'))
 ix <- prof[,1] == 'Unknown'
 prof[ix,1] <- NA
 all.atts <- merge(atts.2,prof,by='Name',all.x=TRUE)
+all.atts <- all.atts[,-7]
 names(all.atts)
+names(all.atts)[3] <- 'Interviewed'
 # [1] "Name"             "Interviewed"      "OrganizationName" "Profession"      
 ```
 
@@ -188,7 +190,7 @@ plot(knows.noiso, layout=layout.kamada.kawai,edge.arrow.size=.3,vertex.size=5,
 plot(knows.noiso, layout=layout.kamada.kawai,edge.arrow.size=.3,vertex.size=5,
      vertex.label=NA,vertex.color=prof_vertex_colors)
 
-plot(degree.distribution(knows))
+#plot(degree.distribution(knows))
 ```
 
 
@@ -199,7 +201,7 @@ advice <- delete.edges(g1, E(g1)[get.edge.attribute(g1,name = "advice")==0])
 summary(advice)
 deg.adv <- degree(advice,mode='in')
 
-advice <- delete.vertices(advice,V(advice)[degree(advice)==0])
+advice.noiso <- delete.vertices(advice,V(advice)[degree(advice)==0])
 deg.adv <- degree(advice,mode='in')
 #plot(degree.distribution(advice.noiso))
 
@@ -208,7 +210,7 @@ plot(advice, layout=layout.fruchterman.reingold.grid,edge.arrow.size=.3,
 plot(advice.noiso, layout=layout.fruchterman.reingold.grid,edge.arrow.size=.3,
      vertex.label=NA,vertex.color=prof_vertex_colors,vertex.size=3)
 
-plot(degree.distribution(advice))
+#plot(degree.distribution(advice))
 ```
 
 ```{r advBetween, eval=FALSE}
@@ -242,7 +244,7 @@ plot(leader.noiso, layout=layout.fruchterman.reingold.grid,edge.arrow.size=.3,
 plot(leader.noiso, layout=layout.fruchterman.reingold.grid,edge.arrow.size=.3,
      vertex.label=NA,vertex.color=prof_vertex_colors,vertex.size=3)
 
-plot(degree.distribution(leader))
+#plot(degree.distribution(leader))
 ```
 
 

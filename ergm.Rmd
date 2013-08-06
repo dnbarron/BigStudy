@@ -83,7 +83,8 @@ atts.2 <- atts.2[ix2,]
 prof <- read.csv('Profession.csv',stringsAsFactor=FALSE)
 prof$Name <- paste(prof[,1],prof[,2],sep='')
 prof <- prof[,-c(1,2)]
-prof[,1] <- factor(prof[,1],levels=c(1:5,99),labels=c('Nurse','Doctor','Allied HP','Social service','Manager','Unknown'))
+
+prof[,1] <- factor(prof[,1],levels=c(1:6,99),labels=c('Nurse','Doctor','Allied HP','Social service','Manager','Other','Unknown'))
 ix <- prof[,1] == 'Unknown'
 prof[ix,1] <- NA
 all.atts <- merge(atts.2,prof,by='Name',all.x=TRUE)
