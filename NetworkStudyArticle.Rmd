@@ -11,10 +11,12 @@ Anne Hunt
 University of Central Lancashire  
 
 
+_NB This is work in progress. Do no cite without permission_
+
 ```{r init, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE}
 rm(list=ls())
 library(knitr)
-opts_chunk$set(cache=FALSE, echo=FALSE)
+opts_chunk$set(cache=FALSE, echo=FALSE, dev='pdf')
 library(igraph)
 library(stringr)
 library(cairoDevice)
@@ -37,6 +39,22 @@ Within  paediatric  care,  Getting  it  right  for  children  and  young  people
 As  networks  have  developed  and  their  impact  upon  the  delivery  of  health  care  become  more important,  researchers  have  looked  to  social  science  theories  to  examine  their  strengths  and weaknesses and possible implications for the NHS `r knitcitations::citep(bib[[155]])`
 
 One important element in the success of a clinical care network, then, will be the ability of members of different organizations within the network to communicate effectively with each other and, in particular, to transfer knowledge across organizational boundaries.
+
+Within health care, there are a wide variety of types of network, from so-called managed networks, characterised---as the name suggests---by relatively formal structures and hierarchies, to informal ``communities of practice''.  The network that we study here is closer to the latter end of the spectrum.
+
+Literature
+------------------------------
+Network forms of organization have attracting an increasing amount of scholarly attention in the private as well as the public sector.  Network forms of organization are commonly viewed as a ``third way'' or organizing economic activity, an alternative to both market transactions and managerial hierarchies.  Proponents of network forms of organization argue that they are able to achieve a level of flexibility in their response to changing circumstances that is greater than hierarchies, but on the other hand they facilitate co-ordination in a way that is difficult to obtain when transactions take place in a market.
+
+Networked businesses are often claimed to facilitate organizational learning and the diffusion of knowledge (Alvesson 2004).  There is a shift toward ``collegiality, consultation and distributed leadership'' (Ferlie et. al: p. 23), particularly in knowledge-intensive firms.
+
+The development of managed networks in the NHS has been discussed by Ferlie et al.  They argue that there was a general trend toward the use of collaborate (as opposed to competitive) forms of governance in the public sector since the late 1990s.  The emphasis was on learning organizations and 'joined-up' policy development, ideas that required an explicit focus on communcation across professional and organizational boundaries.  Ferlie et. al show that the mnanaged network has become an important form of clinical governance in the NHS, and has had some success.  However, not all managed networks achieve their objectives.
+
+Social and organizational boundaries have been found to be responsible for failure in organizational learning and knowledge diffusion.  For example, Ferlie et al 2005 showed that the diffusion of evidence-based clinical practice can become stuck when 
+
+McInness et. al (2012) interviewed a range of clinical network participants in Australia, and identified a number of network characteristics that these experts believed to be crucial to network effectiveness.  One of the key characteristics they identified was the full engagement of network members across professional and organizational boundaries.  Successful networks, it was felt, were those that have developed a ''co-operative and collegial ethos'' (p. 7).
+
+Ahgren and Axelsson argued that a critical success factor in achieving integrated health care was the development of a bottom-up (as opposed to hierarchical) approach, perhaps involving ``integrated networks'' (Ovretveit 1993).
 
 Data and methods
 ---------------------------------
@@ -197,7 +215,7 @@ prof_vertex_colors[prof_vertex_colors == 2] <- colors[2]
 prof_vertex_colors[prof_vertex_colors == 3] <- colors[3]
 prof_vertex_colors[prof_vertex_colors == 4] <- colors[4]
 prof_vertex_colors[prof_vertex_colors == 5] <- colors[5]
-prof_vertex_colors[prof_vertex_colors == 6] <- colors[6]
+prof_vertex_colors[prof_vertex_colors == 6| is.na(prof_vertex_colors)] <- colors[6]
 
 ```
 
@@ -231,13 +249,14 @@ leader.int <- delete.vertices(leader,V(leader)$Interviewed.x=='No')
 deg.adv <- degree(advice.noiso,mode='in')
 influence <- delete.edges(g1,E(g1)[get.edge.attribute(g1,name='influence')==0])
 infl.noiso <- delete.vertices(influence,V(influence)[degree(influence)==0])
+infl.int <- delete.vertices(influence,V(influence)$Interviewed.x=='No')
 deg.inf <- degree(infl.noiso, mode='in')
 ```
 
-```{r advplots }
+```{r advplots, fig.width=4, fig.height=4 }
 plot(advice.noiso, layout=layout.kamada.kawai,edge.arrow.size=.8,
      vertex.label=NA,vertex.color=prof_vertex_colors,vertex.size=deg.adv, main="Advice network")
-legend('topleft',fill=c('Lightblue', 'Red','Green','Yellow','Orange','Purple'), legend=c('Nurse','Doctor','Allied HP','Social services','Manager','Other'))
+legend('topleft',fill=c('Lightblue', 'Red','Green','Yellow','Orange','Purple'), legend=c('Nurse','Doctor','Allied HP','Social services','Manager','Other/Unknown'))
 ```
 
 The advice network is plotted, with the seven people who received no nominations omitted.  The size of the circles is proportional to the number of times the person was nominated as a source of advice.  The degree distribution is shown below.
@@ -267,7 +286,7 @@ As is typical, there are a relatively small number of people who have a high deg
 ```{r subadvplot}
 adv.deg <- degree(advice.int, mode='in')
 plot(advice.int, edge.arrow.size=.8, vertex.color=prof_vertex_colors, layout=layout.kamada.kawai, vertex.size=adv.deg, vertex.label=NA,main='Advice')
-legend('topleft',fill=c('Lightblue', 'Red','Green','Yellow','Orange','Purple'), legend=levels(prof$Profession)[1:6])
+legend('topleft',fill=c('Lightblue', 'Red','Green','Yellow','Orange','Purple'), legend=c('Nurse','Doctor','Allied HP','Social services','Manager','Other/Unknown'))
 
 dc.adv.int <- igraph::dyad.census(advice.int)
 ```
@@ -306,9 +325,6 @@ To get a sense of the interpretation of these numbers, I generated 1000 random n
 
 ### Exponential random graph model
 
-***** 
-_Note: this is preliminary as we don't have complete data on professional backgrounds_
-****
 
 ```{r proftable, results='asis'}
 library(xtable)
@@ -316,7 +332,7 @@ print(xtable(table(prof$Profession)), type='HTML')
 ```
 Professional background of network members
 
-To evaluate any propensity for netowrk members to tend to approach members of their own profession for advice, we need to control for the numbers of each profession in the network. In the table above we can see that there are twice as many nurses as there are doctors.  Therefore, even if nurses were choosing people to turn to for advice at random, they would be twice as likely to choose a nurse as a doctor.
+To evaluate any propensity for netowrk members to tend to approach members of their own profession for advice, we need to control for the numbers of each profession in the network. In the table above we can see that there are more than twice as many nurses as there are doctors.  Therefore, even if nurses were choosing people to turn to for advice at random, they would be twice as likely to choose a nurse as a doctor.
 
 
 ```{r ergm1, message=FALSE, warning=FALSE, results='hide'}
@@ -338,7 +354,7 @@ network::set.vertex.attribute(adv.int.net,'Profession',adv.int.prof)
 #e0 <- ergm(adv.net ~ edges + odegree(0))
 #summary(e0)
 
-e1 <- ergm(adv.net ~  edges  + odegree(0) + mutual + nodeifactor('Profession',base=c(3,4,6)) + nodematch('Profession', diff=TRUE, keep=c(1,2,5))  ,control=control.ergm(seed=10, MCMLE.maxit=50))
+e1 <- ergm(adv.net ~  edges  + odegree(0) + idegree(0) + mutual + nodeifactor('Profession',base=c(3,4,6)) + nodematch('Profession', diff=TRUE, keep=c(1,2,5))  ,control=control.ergm(seed=10, MCMLE.maxit=50))
 
 #e1.int <- ergm(adv.int.net ~  edges + nodeifactor('Profession',base=c(3,4,6)) + nodematch('Profession', diff=TRUE, keep=c(1,2)) + gwidegree(1) ,control=control.ergm(seed=10, MCMLE.maxit=50))
 
@@ -350,10 +366,6 @@ se.e1 <- sqrt(diag(summary(e1)$asycov))
 #e1.gof <- gof(e1)
 #plot(e1.gof)
 
-
-
-detach(package:ergm)
-detach(package:network)
 ```
 The table shows the crosstabulation of ego's and alter's profession in the advice network.
 
@@ -363,36 +375,51 @@ colnames(mix.mat) <- rownames(mix.mat)
 print(xtable(mix.mat, digits=0), type='HTML')
 ```
 
-One way to  investigate whether there is evidence of assortative matching controling for the frequency of different professional groups in the network is by means of an exponential random graph model.  The table below shows the result sof an estimate that includes main effects of professional background as well as variables that measure the propensity of people in the three main professional groups to select members of their own profession.
+One way to  investigate whether there is evidence of assortative matching controling for the frequency of different professional groups in the network is by means of an exponential random graph model (ERGM). These models provide a method for the statistical analysis of social networks.   In these models, the probability of a particular, observed network, $X=x$ conditional on a vector of parameters, $\theta$, nodes is given by:
+
+$$
+  \Pr (X=x | \theta) = \frac{1}{\kappa(\theta)} \exp\{ \theta_1 z_1(x) + \theta_2 z_2(x) + \cdots + \theta_p z_p(x) \}.
+$$
+
+The functions $z_k(x)$ are counts of configurations in the network $x$, the parameters, $\theta_k$ weight the relative importance of the corresponding network configuration, and the function $\kappa(\theta)$ is a normalising term `r knitcitations::citep(bib[[156]])`.  An intuition behind this method is that we compare the 
+
+>"observed network to the other possible ways it could be arranged.  In all networks
+there are a finite number of ways that ties can be arranged....Then, for a distribution of [networks], we have to assign a probability to each [network].  Model estimation assigns probabilities so that an observed network is central, not extreme, in terms of the effects being modelled" `r knitcitations::citep(bib[[156]])`.
+
+The table below shows the result sof an estimate that includes main effects of professional background as well as variables that measure the propensity of people in the three main professional groups to select members of their own profession.
 
 
                  | Estimate    | Standard error
 -----------------|-------------|------------------------
 Edges            |`r b.e1[1]`* | `r se.e1[1]`
 Zero outdegree   |`r b.e1[2]`* | `r se.e1[2]`
-Mutual ties      |`r b.e1[3]`* | `r se.e1[3]`
-Nurses           |`r b.e1[4]`* | `r se.e1[4]`
-Doctors          |`r b.e1[5]`* | `r se.e1[5]`
-Managers         |`r b.e1[6]`  | `r se.e1[6]`
-Nurse homophily  | `r b.e1[7]` | `r se.e1[7]`
-Doctor homophily |`r b.e1[8]`* | `r se.e1[8]`
-Manager homophily| `r b.e1[9]` | `r se.e1[9]`  
+Zero indegree    |`r b.e1[3]`* | `r se.e1[3]`
+Mutual ties      |`r b.e1[4]`* | `r se.e1[4]`
+Nurses           |`r b.e1[5]`* | `r se.e1[5]`
+Doctors          |`r b.e1[6]`* | `r se.e1[6]`
+Managers         |`r b.e1[7]`  | `r se.e1[7]`
+Nurse homophily  | `r b.e1[8]` | `r se.e1[8]`
+Doctor homophily |`r b.e1[9]`* | `r se.e1[9]`
+Manager homophily| `r b.e1[10]` | `r se.e1[10]`  
+AIC              |`r AIC(e1)`  |
 Note: * = *p* < .05
 
-
-This network is, of course, unusual in that there are a large number of nodes with an outdegree of zero---by definition, people who did not participate in the study cannot have nominated any advisors.  Therefore, an additional control variable for nodes with a zero outdegree is also included in the model.  As we have already noted a tendency for mutual ties to be more common than expected, we also include a term to control for this.  We also include main effects to control for the tendancy of nurses, doctors and managers to name advisors; the fact that these are all positive and statistically significant implies that members of these groups have more advisors, on average, than members of the other professions (allied health professions and social service professions).
+The model includes a term for the number of ties (or edges) in the network, a term that is usually said to serve the same function as the intercept in linear regression, representing the baseline propensity for ties to form (that is, for people to name others to whom they turn for advice).  This network is, of course, unusual in that there are a large number of nodes with an outdegree of zero---by definition, people who did not participate in the study cannot have nominated any advisors.  Therefore, an additional control variable for nodes with a zero outdegree is also included in the model.  As we have already noted a tendency for mutual ties to be more common than expected, we also include a term to control for this.  We also include main effects to control for the tendancy of nurses, doctors and managers to name advisors; the fact that these are all positive and statistically significant implies that members of these groups have more advisors, on average, than members of the other professions (allied health professions and social service professions).
 
 We can see that there remains a statitically significant tendancy for doctors to prefer other doctors as advisors.  The estimated homophily effect for nurses is negative, implying that nurses are less likely to choose other nurses as advisors than would be expected by chance, but this estimate is not statistically significant.  Similarly, the postitive estimate for managers suggests that there is some tendancy for managers to disproportionately approach other managers for advice, but again this effect is not statistically significant.
 
 ### Leadership
 
 ```{r leadplots }
+detach(package:ergm)
+detach(package:network)
+
 library(igraph)
 deg.lead <- degree(leader.noiso,mode='in')
 
 plot(leader.noiso, layout=layout.kamada.kawai,edge.arrow.size=.8,
      vertex.label=NA,vertex.color=prof_vertex_colors,vertex.size=deg.lead, main="Leadership network")
-legend('topleft',fill=c('Lightblue', 'Red','Green','Yellow','Orange','Purple'), legend=c('Nurse','Doctor','Allied HP','Social services','Manager','Other'))
+legend('topleft',fill=c('Lightblue', 'Red','Green','Yellow','Orange','Purple'), legend=c('Nurse','Doctor','Allied HP','Social services','Manager','Other/Unknown'))
 
 dc.lead.int <- igraph::dyad.census(leader.int)
 
@@ -430,7 +457,7 @@ network::set.vertex.attribute(lead.int.net,'Profession',lead.int.prof)
 #e0 <- ergm(adv.net ~ edges + odegree(0))
 #summary(e0)
 
-e2 <- ergm(lead.net ~  edges  + odegree(0) + mutual + nodeifactor('Profession',base=c(3,4,6)) + nodematch('Profession', diff=TRUE, keep=c(1,2,5))  ,control=control.ergm(seed=10, MCMLE.maxit=50))
+e2 <- ergm(lead.net ~  edges  + odegree(0) + idegree(0) + mutual + nodeifactor('Profession',base=c(3,4,6)) + nodematch('Profession', diff=TRUE, keep=c(1,2,5))  ,control=control.ergm(seed=10, MCMLE.maxit=50))
 
 #e1.int <- ergm(adv.int.net ~  edges + nodeifactor('Profession',base=c(3,4,6)) + nodematch('Profession', diff=TRUE, keep=c(1,2)) + gwidegree(1) ,control=control.ergm(seed=10, MCMLE.maxit=50))
 
@@ -439,8 +466,6 @@ se.e2 <- sqrt(diag(summary(e2)$asycov))
 #e1.gof <- gof(e1)
 #plot(e1.gof)
 
-detach(package:ergm)
-detach(package:network)
 ```
 
 We can again explore the extent to which mutuality is a reflection of people tending to nominate members of their own profession as leaders, using a similar model to that used for the advice network above.  The results are shown below:
@@ -449,13 +474,15 @@ We can again explore the extent to which mutuality is a reflection of people ten
 -----------------|-------------|------------------------
 Edges            |`r b.e2[1]`* | `r se.e2[1]`
 Zero outdegree   |`r b.e2[2]`* | `r se.e2[2]`
-Mutual ties      |`r b.e2[3]`* | `r se.e2[3]`
-Nurses           |`r b.e2[4]`* | `r se.e2[4]`
-Doctors          |`r b.e2[5]`* | `r se.e2[5]`
-Managers         |`r b.e2[6]`  | `r se.e2[6]`
-Nurse homophily  |`r b.e2[7]`  | `r se.e2[7]`
-Doctor homophily |`r b.e2[8]`  | `r se.e2[8]`
-Manager homophily|`r b.e2[9]`  | `r se.e2[9]`  
+Zero indegree    |`r b.e2[3]`* | `r se.e2[3]`
+Mutual ties      |`r b.e2[4]`* | `r se.e2[4]`
+Nurses           |`r b.e2[5]`  | `r se.e2[5]`
+Doctors          |`r b.e2[6]`* | `r se.e2[6]`
+Managers         |`r b.e2[7]`* | `r se.e2[7]`
+Nurse homophily  |`r b.e2[8]`  | `r se.e2[8]`
+Doctor homophily |`r b.e2[9]`  | `r se.e2[9]`
+Manager homophily|`r b.e2[10]` | `r se.e2[10]`  
+AIC              |`r AIC(e2)`  |
 Note: * = *p* < .05
 
 One possible interpretation of this is that the network is a genuine alternative to a hierarchical structure, and as such is a very different model from that of the managed networks that are becoming a more prominent feature of the NHS.  
@@ -464,13 +491,20 @@ One possible interpretation of this is that the network is a genuine alternative
 ### Influence
 
 ```{r infplots }
+detach(package:ergm)
+detach(package:network)
+
 library(igraph)
 inf.deg <- degree(infl.noiso,mode='in')
 
 plot(infl.noiso, layout=layout.kamada.kawai,edge.arrow.size=.8,
-     vertex.label=NA,vertex.color=prof_vertex_colors,vertex.size=inf.deg, main="Leadership network")
-legend('topleft',fill=c('Lightblue', 'Red','Green','Yellow','Orange','Purple'), legend=c('Nurse','Doctor','Allied HP','Social services','Manager','Other'))
+     vertex.label=NA,vertex.color=prof_vertex_colors,vertex.size=inf.deg, main="Influence network")
+legend('topleft',fill=c('Lightblue', 'Red','Green','Yellow','Orange','Purple'), legend=c('Nurse','Doctor','Allied HP','Social services','Manager','Other/Unknown'))
+
+dc.infl.int <- igraph::dyad.census(infl.int)
 ```
+
+Turning as before to the subnetwork of those peoplel who were interviewed, the global reach centrality score is ```r grc(infl.int)```, slightly more than the advice network, but still very low, indicating a low level of hiearchy.  In the sub-network, the number of mutual dyads is ```r dc.infl.int$mut``` while the number of asymmetric dyads is ```r dc.infl.int$asym``` and the number of dyads with no ties in either direction is ```r dc.infl.int$null```. The influence network is, then, somewhat more hierarchical than the advice network, but for a network on this type of relation there is in fact a very high degree of mutuality in this network, much more than one would expect in a random network.
 
 
 ```{r ergminf, message=FALSE, warning=FALSE, results='hide'}
@@ -492,19 +526,31 @@ network::set.vertex.attribute(infl.net,'Profession',infl.prof)
 #e0 <- ergm(adv.net ~ edges + odegree(0))
 #summary(e0)
 
-e3 <- ergm(infl.net ~  edges  + odegree(0) + nodeifactor('Profession',base=c(3,4,6)) + nodematch('Profession', diff=TRUE, keep=c(1,2,5))  ,control=control.ergm(seed=10, MCMLE.maxit=50))
+e3 <- ergm(infl.net ~  edges  + odegree(0) + idegree(0) + mutual + nodeifactor('Profession',base=c(3,4,6)) + nodematch('Profession', diff=TRUE, keep=c(1,2,5))  ,control=control.ergm(seed=10, MCMLE.maxit=50))
 
 #e1.int <- ergm(adv.int.net ~  edges + nodeifactor('Profession',base=c(3,4,6)) + nodematch('Profession', diff=TRUE, keep=c(1,2)) + gwidegree(1) ,control=control.ergm(seed=10, MCMLE.maxit=50))
 
-b.e2 <- coef(e2)
-se.e2 <- sqrt(diag(summary(e2)$asycov))
+b.e3 <- coef(e3)
+se.e3 <- sqrt(diag(summary(e3)$asycov))
 #e1.gof <- gof(e1)
 #plot(e1.gof)
 
-detach(package:ergm)
-detach(package:network)
 ```
 
+                 | Estimate    | Standard error
+-----------------|-------------|------------------------
+Edges            |`r b.e3[1]`* | `r se.e3[1]`
+Zero outdegree   |`r b.e3[2]`* | `r se.e3[2]`
+Zero indegree    |`r b.e3[3]`* | `r se.e2[3]`
+Mutual ties      |`r b.e3[4]`* | `r se.e3[4]`
+Nurses           |`r b.e3[5]`  | `r se.e3[5]`
+Doctors          |`r b.e3[6]`* | `r se.e3[6]`
+Managers         |`r b.e3[7]`  | `r se.e3[7]`
+Nurse homophily  |`r b.e3[8]`* | `r se.e3[8]`
+Doctor homophily |`r b.e3[9]`  | `r se.e3[9]`
+Manager homophily|`r b.e3[10]` | `r se.e3[10]`
+AIC              |`r AIC(e3)`  |
+Note: * = *p* < .05
 
 # References
 
@@ -518,11 +564,29 @@ bibliography()
 
 ### Advice network
 
-```{r advicegof, message=FALSE, cache=TRUE}
+```{r advicegof, message=FALSE, cache=FALSE, eval=FALSE}
 library(network)
 library(ergm)
 detach(package:igraph)
 gof.advice <- gof(e1)
 plot(e1)
 plot(gof.advice)
+```
+
+### Leadership network
+
+```{r leadgof, message=FALSE, cache=FALSE, eval=FALSE}
+library(network)
+library(ergm)
+gof.lead <- gof(e2)
+plot(e2)
+plot(gof.lead)
+```
+
+### Influence network
+
+```{r infgof, message=FALSE, cache=FALSE, eval=FALSE}
+gof.inf <- gof(e3)
+plot(e3)
+plot(gof.inf)
 ```
